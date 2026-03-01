@@ -117,7 +117,11 @@ async fn proxy_handler(
     );
 
     for (key, value) in &response_headers {
-        if key.to_lowercase() != "transfer-encoding" && key.to_lowercase() != "content-length" {
+        let lower = key.to_lowercase();
+        if lower != "transfer-encoding"
+            && lower != "content-length" 
+            && lower != "content-encoding" 
+        {
             http_response.insert_header((key.as_str(), value.as_str()));
         }
     }
