@@ -19,7 +19,11 @@ To run this project, you need the following installed:
 
 ### 1. Clone the repository
 ```bash
-git clone [https://github.com/suryanox/transit.git](https://github.com/suryanox/transit.git)
+git clone https://github.com/suryanox/transit.git
+
+```
+
+```bash
 cd transit
 ```
 
