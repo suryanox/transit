@@ -10,7 +10,6 @@ import {
   List,
   ListItemButton,
   Chip,
-  Divider,
   Stack,
   Tooltip,
   useTheme,
