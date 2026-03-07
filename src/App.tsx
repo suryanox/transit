@@ -1,6 +1,32 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import {
+  Box,
+  Typography,
+  TextField,
+  IconButton,
+  Button,
+  Paper,
+  List,
+  ListItemButton,
+  Chip,
+  Divider,
+  Stack,
+  Tooltip,
+  useTheme,
+  alpha,
+} from "@mui/material";
+import {
+  Add as AddIcon,
+  Close as CloseIcon,
+  ContentCopy as CopyIcon,
+  Check as CheckIcon,
+  Delete as DeleteIcon,
+  ArrowForward as ArrowIcon,
+  Description as DocIcon,
+  Info as InfoIcon,
+  Timeline as TimelineIcon,
+} from "@mui/icons-material";
 
 interface ProxyEndpoint {
   id: string;
@@ -34,34 +60,82 @@ function CopyButton({ text }: { text: string }) {
   };
 
   return (
-    <button className="copy-btn" onClick={handleCopy} title="Copy">
-      {copied ? (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      ) : (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-        </svg>
-      )}
-    </button>
+    <Tooltip title={copied ? "Copied!" : "Copy"}>
+      <IconButton size="small" onClick={handleCopy} sx={{ color: "text.secondary" }}>
+        {copied ? <CheckIcon fontSize="small" /> : <CopyIcon fontSize="small" />}
+      </IconButton>
+    </Tooltip>
   );
 }
 
 function CodeBlock({ content, label }: { content: string; label?: string }) {
+  const theme = useTheme();
+
   return (
-    <div className="code-block">
-      {label && <span className="code-label">{label}</span>}
-      <div className="code-header">
+    <Box>
+      {label && (
+        <Typography
+          variant="caption"
+          sx={{
+            color: "text.secondary",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            mb: 0.5,
+            display: "block",
+          }}
+        >
+          {label}
+        </Typography>
+      )}
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 0.5 }}>
         <CopyButton text={content} />
-      </div>
-      <pre>{content}</pre>
-    </div>
+      </Box>
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 2,
+          bgcolor: alpha(theme.palette.background.default, 0.5),
+          fontFamily: '"JetBrains Mono", "SF Mono", "Fira Code", monospace',
+          fontSize: "11px",
+          lineHeight: 1.7,
+          overflow: "auto",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+          color: "text.secondary",
+        }}
+      >
+        <pre style={{ margin: 0 }}>{content}</pre>
+      </Paper>
+    </Box>
   );
 }
 
+const methodColors: Record<string, string> = {
+  GET: "#61affe",
+  POST: "#49cc90",
+  PUT: "#fca130",
+  DELETE: "#f93e3e",
+  PATCH: "#50e3c2",
+  HEAD: "#9012fe",
+};
+
+const getStatusColor = (status: number) => {
+  if (status < 300) return "#49cc90";
+  if (status < 400) return "#fca130";
+  return "#f93e3e";
+};
+
+const formatJson = (str: string | null) => {
+  if (!str) return null;
+  try {
+    return JSON.stringify(JSON.parse(str), null, 2);
+  } catch {
+    return str;
+  }
+};
+
 function App() {
+  const theme = useTheme();
   const [endpoints, setEndpoints] = useState<ProxyEndpoint[]>([]);
   const [selectedEndpoint, setSelectedEndpoint] = useState<string | null>(null);
   const [selectedLog, setSelectedLog] = useState<RequestLog | null>(null);
@@ -128,268 +202,561 @@ function App() {
     await navigator.clipboard.writeText(`http://localhost:${port}`);
   };
 
-  const getMethodColor = (method: string) => {
-    const colors: Record<string, string> = {
-      GET: "#61affe",
-      POST: "#49cc90",
-      PUT: "#fca130",
-      DELETE: "#f93e3e",
-      PATCH: "#50e3c2",
-      HEAD: "#9012fe",
-    };
-    return colors[method] || "#999";
-  };
-
-  const getStatusColor = (status: number) => {
-    if (status < 300) return "#49cc90";
-    if (status < 400) return "#fca130";
-    return "#f93e3e";
-  };
-
-  const formatJson = (str: string | null) => {
-    if (!str) return null;
-    try {
-      return JSON.stringify(JSON.parse(str), null, 2);
-    } catch {
-      return str;
-    }
-  };
-
   const currentEndpoint = endpoints.find((e) => e.id === selectedEndpoint);
 
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <div className="logo">
-            <span className="logo-icon">◈</span>
-            <span className="logo-text">Transit</span>
-          </div>
-        </div>
-        <div className="create-proxy">
-          <input
-            type="text"
-            placeholder="https://api.example.com"
-            value={destinationUrl}
-            onChange={(e) => setDestinationUrl(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleCreateProxy()}
-          />
-          <button onClick={handleCreateProxy} disabled={loading}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-        </div>
-        <div className="sidebar-section-label">Proxies</div>
-        <nav className="endpoints-list">
+    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      <Box
+        sx={{
+          width: { xs: 220, sm: 260 },
+          bgcolor: "background.paper",
+          borderRight: 1,
+          borderColor: "divider",
+          display: "flex",
+          flexDirection: "column",
+          flexShrink: 0,
+        }}
+      >
+        <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <TimelineIcon sx={{ color: "primary.main", fontSize: 20 }} />
+            <Typography variant="subtitle1" fontWeight={600} letterSpacing="-0.02em">
+              Transit
+            </Typography>
+          </Stack>
+        </Box>
+
+        <Box sx={{ p: 1.5, borderBottom: 1, borderColor: "divider" }}>
+          <Stack direction="row" spacing={1}>
+            <TextField
+              size="small"
+              fullWidth
+              placeholder="https://api.example.com"
+              value={destinationUrl}
+              onChange={(e) => setDestinationUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCreateProxy()}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  fontSize: "12px",
+                  bgcolor: alpha(theme.palette.background.default, 0.5),
+                },
+              }}
+            />
+            <IconButton
+              color="primary"
+              onClick={handleCreateProxy}
+              disabled={loading}
+              sx={{
+                bgcolor: "primary.main",
+                color: "white",
+                "&:hover": { bgcolor: "primary.dark" },
+                "&:disabled": { bgcolor: alpha(theme.palette.primary.main, 0.3) },
+              }}
+            >
+              <AddIcon />
+            </IconButton>
+          </Stack>
+        </Box>
+
+        <Typography
+          variant="caption"
+          sx={{
+            px: 2,
+            pt: 1.5,
+            pb: 1,
+            color: "text.secondary",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            fontWeight: 600,
+            fontSize: "10px",
+          }}
+        >
+          Proxies
+        </Typography>
+
+        <Box sx={{ flex: 1, overflow: "auto", px: 1 }}>
           {endpoints.length === 0 ? (
-            <div className="empty-sidebar">No proxies yet</div>
+            <Typography
+              sx={{ p: 3, textAlign: "center", color: "text.secondary", fontSize: "12px" }}
+            >
+              No proxies yet
+            </Typography>
           ) : (
-            endpoints.map((ep) => (
-              <div
-                key={ep.id}
-                className={`endpoint-item ${selectedEndpoint === ep.id ? "active" : ""}`}
-                onClick={() => {
-                  setSelectedEndpoint(ep.id);
-                  setSelectedLog(null);
-                }}
-              >
-                <div className="endpoint-status" />
-                <div className="endpoint-info">
-                  <span className="port">localhost:{ep.local_port}</span>
-                  <span className="dest">{ep.destination_url}</span>
-                </div>
-                <button
-                  className="delete-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteEndpoint(ep.id);
+            <List disablePadding>
+              {endpoints.map((ep) => (
+                <ListItemButton
+                  key={ep.id}
+                  selected={selectedEndpoint === ep.id}
+                  onClick={() => {
+                    setSelectedEndpoint(ep.id);
+                    setSelectedLog(null);
+                  }}
+                  sx={{
+                    borderRadius: 1,
+                    mb: 0.5,
+                    py: 1,
+                    px: 1.5,
+                    "&.Mui-selected": {
+                      bgcolor: alpha(theme.palette.primary.main, 0.1),
+                    },
                   }}
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
-            ))
+                  <Box
+                    sx={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      bgcolor: "success.main",
+                      boxShadow: `0 0 8px ${theme.palette.success.main}`,
+                      mr: 1.5,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography
+                      sx={{
+                        fontFamily: '"JetBrains Mono", monospace',
+                        fontSize: "12px",
+                        fontWeight: 500,
+                      }}
+                    >
+                      localhost:{ep.local_port}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontSize: "11px",
+                        color: "text.secondary",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {ep.destination_url}
+                    </Typography>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteEndpoint(ep.id);
+                    }}
+                    sx={{
+                      opacity: 0,
+                      color: "text.secondary",
+                      ".MuiListItemButton-root:hover &": { opacity: 1 },
+                      "&:hover": { color: "error.main", bgcolor: alpha(theme.palette.error.main, 0.1) },
+                    }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </ListItemButton>
+              ))}
+            </List>
           )}
-        </nav>
-      </aside>
+        </Box>
+      </Box>
 
-      <main className="main-content">
+      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         {currentEndpoint ? (
           <>
-            <header className="content-header">
-              <div className="endpoint-display">
-                <div className="url-badge">
-                  <span className="url-text">http://localhost:{currentEndpoint.local_port}</span>
-                  <button className="url-copy" onClick={() => copyUrl(currentEndpoint.local_port)} title="Copy URL">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                    </svg>
-                  </button>
-                </div>
-                <span className="arrow">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                    <polyline points="12 5 19 12 12 19" />
-                  </svg>
-                </span>
-                <div className="dest-badge">{currentEndpoint.destination_url}</div>
-              </div>
-              <button className="clear-btn" onClick={handleClearLogs}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                p: { xs: 1, sm: 1.5 },
+                borderBottom: 1,
+                borderColor: "divider",
+                bgcolor: "background.paper",
+                flexWrap: "wrap",
+                gap: 1,
+              }}
+            >
+              <Stack direction="row" alignItems="center" spacing={1.5} sx={{ flexWrap: "wrap" }}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.5,
+                    px: 1.5,
+                    py: 0.75,
+                    bgcolor: alpha(theme.palette.background.default, 0.5),
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontFamily: '"JetBrains Mono", monospace',
+                      fontSize: "12px",
+                      color: "primary.main",
+                    }}
+                  >
+                    http://localhost:{currentEndpoint.local_port}
+                  </Typography>
+                  <Tooltip title="Copy URL">
+                    <IconButton
+                      size="small"
+                      onClick={() => copyUrl(currentEndpoint.local_port)}
+                      sx={{ p: 0.25 }}
+                    >
+                      <CopyIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Tooltip>
+                </Paper>
+                <ArrowIcon sx={{ color: "text.secondary", fontSize: 16 }} />
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    px: 1.5,
+                    py: 0.75,
+                    bgcolor: alpha(theme.palette.background.default, 0.5),
+                    maxWidth: { xs: 150, sm: 300 },
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontFamily: '"JetBrains Mono", monospace',
+                      fontSize: "12px",
+                      color: "text.secondary",
+                    }}
+                  >
+                    {currentEndpoint.destination_url}
+                  </Typography>
+                </Paper>
+              </Stack>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<DeleteIcon />}
+                onClick={handleClearLogs}
+                sx={{ color: "text.secondary", borderColor: "divider" }}
+              >
                 Clear
-              </button>
-            </header>
-            <div className="content-body">
-              <div className="logs-panel">
-                <div className="panel-header">
-                  <span>Requests</span>
-                  <span className="request-count">{logs.length}</span>
-                </div>
-                <div className="logs-list">
+              </Button>
+            </Box>
+
+            <Box sx={{ flex: 1, display: "flex", overflow: "hidden", flexDirection: { xs: "column", md: "row" } }}>
+              <Box
+                sx={{
+                  width: { xs: "100%", md: 340 },
+                  minHeight: { xs: 200, md: "auto" },
+                  borderRight: { md: 1 },
+                  borderBottom: { xs: 1, md: 0 },
+                  borderColor: "divider",
+                  display: "flex",
+                  flexDirection: "column",
+                  flexShrink: 0,
+                  bgcolor: "background.paper",
+                }}
+              >
+                <Box
+                  sx={{
+                    px: 2,
+                    py: 1.5,
+                    borderBottom: 1,
+                    borderColor: "divider",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                    Requests
+                  </Typography>
+                  <Chip
+                    label={logs.length}
+                    size="small"
+                    sx={{
+                      height: 20,
+                      fontSize: "11px",
+                      bgcolor: alpha(theme.palette.background.default, 0.5),
+                    }}
+                  />
+                </Box>
+                <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>
                   {logs.length === 0 ? (
-                    <div className="empty-state">
-                      <div className="empty-icon">
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                          <circle cx="12" cy="12" r="10" />
-                          <line x1="12" y1="8" x2="12" y2="12" />
-                          <line x1="12" y1="16" x2="12.01" y2="16" />
-                        </svg>
-                      </div>
-                      <p>Waiting for requests...</p>
-                      <span className="empty-hint">Send requests to your proxy URL</span>
-                    </div>
+                    <Box sx={{ p: 4, textAlign: "center" }}>
+                      <InfoIcon sx={{ fontSize: 32, color: "text.secondary", opacity: 0.4, mb: 2 }} />
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                        Waiting for requests...
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Send requests to your proxy URL
+                      </Typography>
+                    </Box>
                   ) : (
-                    [...logs].reverse().map((log) => (
-                      <div
-                        key={log.id}
-                        className={`log-item ${selectedLog?.id === log.id ? "active" : ""}`}
-                        onClick={() => setSelectedLog(log)}
-                      >
-                        <span className="method-badge" style={{ background: getMethodColor(log.method) + "20", color: getMethodColor(log.method) }}>
-                          {log.method}
-                        </span>
-                        <span className="path">{log.path}</span>
-                        <span className="status-badge" style={{ background: getStatusColor(log.response_status) + "20", color: getStatusColor(log.response_status) }}>
-                          {log.response_status}
-                        </span>
-                        <span className="duration">{log.duration_ms}ms</span>
-                      </div>
-                    ))
+                    <List disablePadding>
+                      {[...logs].reverse().map((log) => (
+                        <ListItemButton
+                          key={log.id}
+                          selected={selectedLog?.id === log.id}
+                          onClick={() => setSelectedLog(log)}
+                          sx={{
+                            borderRadius: 1,
+                            mb: 0.5,
+                            py: 1,
+                            px: 1.5,
+                            "&.Mui-selected": {
+                              bgcolor: alpha(theme.palette.primary.main, 0.1),
+                            },
+                          }}
+                        >
+                          <Chip
+                            label={log.method}
+                            size="small"
+                            sx={{
+                              height: 20,
+                              fontSize: "10px",
+                              fontWeight: 600,
+                              fontFamily: '"JetBrains Mono", monospace',
+                              bgcolor: alpha(methodColors[log.method] || "#999", 0.2),
+                              color: methodColors[log.method] || "#999",
+                              mr: 1,
+                            }}
+                          />
+                          <Typography
+                            sx={{
+                              flex: 1,
+                              fontFamily: '"JetBrains Mono", monospace',
+                              fontSize: "11px",
+                              color: "text.secondary",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              mr: 1,
+                            }}
+                          >
+                            {log.path}
+                          </Typography>
+                          <Chip
+                            label={log.response_status}
+                            size="small"
+                            sx={{
+                              height: 20,
+                              fontSize: "10px",
+                              fontWeight: 600,
+                              fontFamily: '"JetBrains Mono", monospace',
+                              bgcolor: alpha(getStatusColor(log.response_status), 0.2),
+                              color: getStatusColor(log.response_status),
+                              mr: 1,
+                            }}
+                          />
+                          <Typography
+                            sx={{
+                              fontFamily: '"JetBrains Mono", monospace',
+                              fontSize: "10px",
+                              color: "text.secondary",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {log.duration_ms}ms
+                          </Typography>
+                        </ListItemButton>
+                      ))}
+                    </List>
                   )}
-                </div>
-              </div>
+                </Box>
+              </Box>
 
               {selectedLog ? (
-                <div className="detail-panel">
-                  <div className="detail-tabs">
-                    <div className="tab-group">
-                      <span className="tab active">Details</span>
-                    </div>
-                    <span className="detail-time">{new Date(selectedLog.timestamp).toLocaleTimeString()}</span>
-                  </div>
+                <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      px: 2.5,
+                      py: 1.5,
+                      borderBottom: 1,
+                      borderColor: "divider",
+                      bgcolor: "background.paper",
+                    }}
+                  >
+                    <Chip
+                      label="Details"
+                      size="small"
+                      sx={{
+                        bgcolor: alpha(theme.palette.background.default, 0.5),
+                        fontWeight: 500,
+                      }}
+                    />
+                    <Typography
+                      sx={{
+                        fontFamily: '"JetBrains Mono", monospace',
+                        fontSize: "11px",
+                        color: "text.secondary",
+                      }}
+                    >
+                      {new Date(selectedLog.timestamp).toLocaleTimeString()}
+                    </Typography>
+                  </Box>
 
-                  <div className="detail-content">
-                    <div className="detail-section">
-                      <div className="section-header">
-                        <span>Request</span>
-                        <span className="method-pill" style={{ background: getMethodColor(selectedLog.method) }}>
-                          {selectedLog.method}
-                        </span>
-                      </div>
-                      <div className="section-body">
-                        <div className="info-grid">
-                          <div className="info-item">
-                            <span className="info-label">Path</span>
-                            <span className="info-value mono">{selectedLog.path}</span>
-                          </div>
-                          <div className="info-item">
-                            <span className="info-label">Duration</span>
-                            <span className="info-value">{selectedLog.duration_ms}ms</span>
-                          </div>
-                        </div>
-
-                        {Object.keys(selectedLog.query_params).length > 0 && (
-                          <CodeBlock
-                            label="Query Params"
-                            content={JSON.stringify(selectedLog.query_params, null, 2)}
+                  <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
+                    <Stack spacing={2.5}>
+                      <Paper variant="outlined" sx={{ overflow: "hidden" }}>
+                        <Box
+                          sx={{
+                            px: 2,
+                            py: 1.5,
+                            bgcolor: alpha(theme.palette.background.default, 0.5),
+                            borderBottom: 1,
+                            borderColor: "divider",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                          }}
+                        >
+                          <Typography variant="body2" fontWeight={500}>
+                            Request
+                          </Typography>
+                          <Chip
+                            label={selectedLog.method}
+                            size="small"
+                            sx={{
+                              height: 22,
+                              fontSize: "10px",
+                              fontWeight: 600,
+                              fontFamily: '"JetBrains Mono", monospace',
+                              bgcolor: methodColors[selectedLog.method] || "#999",
+                              color: "white",
+                            }}
                           />
-                        )}
+                        </Box>
+                        <Box sx={{ p: 2 }}>
+                          <Stack spacing={2}>
+                            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                              <Box sx={{ flex: 1 }}>
+                                <Typography
+                                  variant="caption"
+                                  sx={{ color: "text.secondary", textTransform: "uppercase", letterSpacing: "0.05em" }}
+                                >
+                                  Path
+                                </Typography>
+                                <Typography
+                                  sx={{
+                                    fontFamily: '"JetBrains Mono", monospace',
+                                    fontSize: "12px",
+                                    wordBreak: "break-all",
+                                  }}
+                                >
+                                  {selectedLog.path}
+                                </Typography>
+                              </Box>
+                              <Box>
+                                <Typography
+                                  variant="caption"
+                                  sx={{ color: "text.secondary", textTransform: "uppercase", letterSpacing: "0.05em" }}
+                                >
+                                  Duration
+                                </Typography>
+                                <Typography sx={{ fontSize: "13px" }}>{selectedLog.duration_ms}ms</Typography>
+                              </Box>
+                            </Stack>
 
-                        <CodeBlock
-                          label="Headers"
-                          content={JSON.stringify(selectedLog.request_headers, null, 2)}
-                        />
+                            {Object.keys(selectedLog.query_params).length > 0 && (
+                              <CodeBlock
+                                label="Query Params"
+                                content={JSON.stringify(selectedLog.query_params, null, 2)}
+                              />
+                            )}
 
-                        {selectedLog.request_body && (
-                          <CodeBlock
-                            label="Body"
-                            content={formatJson(selectedLog.request_body) || ""}
+                            <CodeBlock
+                              label="Headers"
+                              content={JSON.stringify(selectedLog.request_headers, null, 2)}
+                            />
+
+                            {selectedLog.request_body && (
+                              <CodeBlock label="Body" content={formatJson(selectedLog.request_body) || ""} />
+                            )}
+                          </Stack>
+                        </Box>
+                      </Paper>
+
+                      <Paper variant="outlined" sx={{ overflow: "hidden" }}>
+                        <Box
+                          sx={{
+                            px: 2,
+                            py: 1.5,
+                            bgcolor: alpha(theme.palette.background.default, 0.5),
+                            borderBottom: 1,
+                            borderColor: "divider",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                          }}
+                        >
+                          <Typography variant="body2" fontWeight={500}>
+                            Response
+                          </Typography>
+                          <Chip
+                            label={selectedLog.response_status}
+                            size="small"
+                            sx={{
+                              height: 22,
+                              fontSize: "10px",
+                              fontWeight: 600,
+                              fontFamily: '"JetBrains Mono", monospace',
+                              bgcolor: getStatusColor(selectedLog.response_status),
+                              color: "white",
+                            }}
                           />
-                        )}
-                      </div>
-                    </div>
+                        </Box>
+                        <Box sx={{ p: 2 }}>
+                          <Stack spacing={2}>
+                            <CodeBlock
+                              label="Headers"
+                              content={JSON.stringify(selectedLog.response_headers, null, 2)}
+                            />
 
-                    <div className="detail-section">
-                      <div className="section-header">
-                        <span>Response</span>
-                        <span className="status-pill" style={{ background: getStatusColor(selectedLog.response_status) }}>
-                          {selectedLog.response_status}
-                        </span>
-                      </div>
-                      <div className="section-body">
-                        <CodeBlock
-                          label="Headers"
-                          content={JSON.stringify(selectedLog.response_headers, null, 2)}
-                        />
-
-                        {selectedLog.response_body && (
-                          <CodeBlock
-                            label="Body"
-                            content={formatJson(selectedLog.response_body) || ""}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                            {selectedLog.response_body && (
+                              <CodeBlock label="Body" content={formatJson(selectedLog.response_body) || ""} />
+                            )}
+                          </Stack>
+                        </Box>
+                      </Paper>
+                    </Stack>
+                  </Box>
+                </Box>
               ) : (
-                <div className="detail-placeholder">
-                  <div className="placeholder-icon">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                      <line x1="16" y1="13" x2="8" y2="13" />
-                      <line x1="16" y1="17" x2="8" y2="17" />
-                      <polyline points="10 9 9 9 8 9" />
-                    </svg>
-                  </div>
-                  <p>Select a request to view details</p>
-                </div>
+                <Box
+                  sx={{
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "text.secondary",
+                  }}
+                >
+                  <DocIcon sx={{ fontSize: 48, opacity: 0.3, mb: 1.5 }} />
+                  <Typography variant="body2">Select a request to view details</Typography>
+                </Box>
               )}
-            </div>
+            </Box>
           </>
         ) : (
-          <div className="welcome">
-            <div className="welcome-icon">
-              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
-                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-              </svg>
-            </div>
-            <h2>Create a proxy</h2>
-            <p>Enter a destination URL in the sidebar to get started</p>
-          </div>
+          <Box
+            sx={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "text.secondary",
+            }}
+          >
+            <TimelineIcon sx={{ fontSize: 64, opacity: 0.2, mb: 2 }} />
+            <Typography variant="h6" fontWeight={500} color="text.secondary">
+              Create a proxy
+            </Typography>
+            <Typography variant="body2">Enter a destination URL in the sidebar to get started</Typography>
+          </Box>
         )}
-      </main>
-    </div>
+      </Box>
+    </Box>
   );
 }
 
