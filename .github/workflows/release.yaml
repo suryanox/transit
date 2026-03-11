@@ -56,7 +56,7 @@ jobs:
           cache: 'yarn'
 
       - name: Setup Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
@@ -92,7 +92,7 @@ jobs:
           cache: 'yarn'
 
       - name: Setup Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
 
