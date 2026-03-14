@@ -2,6 +2,11 @@
 
 A lightweight Rust desktop proxy that forwards requests and logs the complete request and response lifecycle in real time. Built with **Tauri**, **Rust**, and **React**.
 
+## Demo
+
+![Transit Demo](demo.gif)
+
+
 ## Features
 
 - **Real-time Inspection**: View full request and response data as it flows through the proxy.
