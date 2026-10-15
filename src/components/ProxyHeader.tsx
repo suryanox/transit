@@ -13,15 +13,17 @@ import {
   ContentCopy as CopyIcon,
   Delete as DeleteIcon,
   ArrowForward as ArrowIcon,
+  PictureAsPdf as PdfIcon,
 } from "@mui/icons-material";
 import { ProxyEndpoint } from "../types";
 
 interface ProxyHeaderProps {
   endpoint: ProxyEndpoint;
   onClearLogs: () => void;
+  onExportPdf: () => void;
 }
 
-export function ProxyHeader({ endpoint, onClearLogs }: ProxyHeaderProps) {
+export function ProxyHeader({ endpoint, onClearLogs, onExportPdf }: ProxyHeaderProps) {
   const theme = useTheme();
 
   const copyUrl = async () => {
@@ -93,15 +95,26 @@ export function ProxyHeader({ endpoint, onClearLogs }: ProxyHeaderProps) {
           </Typography>
         </Paper>
       </Stack>
-      <Button
-        variant="outlined"
-        size="small"
-        startIcon={<DeleteIcon />}
-        onClick={onClearLogs}
-        sx={{ color: "text.secondary", borderColor: "divider" }}
-      >
-        Clear
-      </Button>
+      <Stack direction="row" spacing={1}>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<PdfIcon />}
+          onClick={onExportPdf}
+          sx={{ color: "text.secondary", borderColor: "divider" }}
+        >
+          Export PDF
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<DeleteIcon />}
+          onClick={onClearLogs}
+          sx={{ color: "text.secondary", borderColor: "divider" }}
+        >
+          Clear
+        </Button>
+      </Stack>
     </Box>
   );
 }

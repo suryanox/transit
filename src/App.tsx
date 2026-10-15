@@ -62,6 +62,24 @@ function App() {
     setSelectedLog(null);
   };
 
+  const handleExportPdf = async () => {
+    if (!selectedEndpoint) return;
+
+    try {
+      const bytes = await invoke<number[]>("export_logs_pdf", { endpointId: selectedEndpoint });
+      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `transit-proxy-${selectedEndpoint.slice(0, 8)}-logs.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Failed to export logs", error);
+      window.alert("Failed to export proxy logs as PDF.");
+    }
+  };
+
   const handleSelectEndpoint = (id: string) => {
     setSelectedEndpoint(id);
     setSelectedLog(null);
@@ -82,7 +100,11 @@ function App() {
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         {currentEndpoint ? (
           <>
-            <ProxyHeader endpoint={currentEndpoint} onClearLogs={handleClearLogs} />
+            <ProxyHeader
+              endpoint={currentEndpoint}
+              onClearLogs={handleClearLogs}
+              onExportPdf={handleExportPdf}
+            />
 
             <Box sx={{ flex: 1, display: "flex", overflow: "hidden", flexDirection: { xs: "column", md: "row" } }}>
               <RequestList
