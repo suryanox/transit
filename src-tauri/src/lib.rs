@@ -195,12 +195,117 @@ fn pdf_lines(value: &str, width: usize) -> Vec<String> {
     lines
 }
 
+fn pdf_lines_preserve(value: &str, width: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    for source_line in value.lines() {
+        let chars = source_line.chars().collect::<Vec<_>>();
+        if chars.is_empty() {
+            lines.push(String::new());
+            continue;
+        }
+        for chunk in chars.chunks(width) {
+            lines.push(chunk.iter().collect());
+        }
+    }
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines
+}
+
+fn pretty_json(value: &str) -> String {
+    let trimmed = value.trim();
+    if !(trimmed.starts_with('{') || trimmed.starts_with('[')) {
+        return value.to_string();
+    }
+
+    let mut result = String::new();
+    let mut indent = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut need_indent = false;
+
+    for character in trimmed.chars() {
+        if in_string {
+            result.push(character);
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        match character {
+            '"' => {
+                if need_indent {
+                    result.push_str(&"  ".repeat(indent));
+                    need_indent = false;
+                }
+                in_string = true;
+                result.push(character);
+            }
+            '{' | '[' => {
+                if need_indent {
+                    result.push_str(&"  ".repeat(indent));
+                    need_indent = false;
+                }
+                result.push(character);
+                indent += 1;
+                result.push('\n');
+                need_indent = true;
+            }
+            '}' | ']' => {
+                indent = indent.saturating_sub(1);
+                if !result.ends_with('\n') {
+                    result.push('\n');
+                }
+                result.push_str(&"  ".repeat(indent));
+                result.push(character);
+            }
+            ',' => {
+                result.push(',');
+                result.push('\n');
+                need_indent = true;
+            }
+            ':' => {
+                result.push_str(": ");
+            }
+            character if character.is_whitespace() => {}
+            _ => {
+                if need_indent {
+                    result.push_str(&"  ".repeat(indent));
+                    need_indent = false;
+                }
+                result.push(character);
+            }
+        }
+    }
+
+    result
+}
+
 fn add_pdf_text(content: &mut String, x: i32, y: &mut i32, text: &str, size: i32, bold: bool) {
+    add_pdf_text_color(content, x, y, text, size, bold, "0 0 0");
+}
+
+fn add_pdf_text_color(
+    content: &mut String,
+    x: i32,
+    y: &mut i32,
+    text: &str,
+    size: i32,
+    bold: bool,
+    color: &str,
+) {
     let font = if bold { "/F2" } else { "/F1" };
     for line in pdf_lines(text, 104) {
         let _ = writeln!(
             content,
-            "BT {} {} Tf {} {} Td ({}) Tj ET",
+            "{} rg BT {} {} Tf {} {} Td ({}) Tj ET",
+            color,
             font,
             size,
             x,
@@ -209,6 +314,26 @@ fn add_pdf_text(content: &mut String, x: i32, y: &mut i32, text: &str, size: i32
         );
         *y -= if size >= 15 { 24 } else { 15 };
     }
+}
+
+fn add_pdf_code_line(content: &mut String, x: i32, y: i32, line: &str) {
+    let _ = writeln!(
+        content,
+        "q 0.96 0.97 0.98 rg {} {} 504 13 re f Q 0.18 0.22 0.28 rg BT /F3 8 Tf {} {} Td ({}) Tj ET",
+        x - 8,
+        y - 5,
+        x,
+        y,
+        pdf_escape(line)
+    );
+}
+
+fn add_pdf_rect(content: &mut String, x: i32, y: i32, width: i32, height: i32, color: &str) {
+    let _ = writeln!(
+        content,
+        "q {} rg {} {} {} {} re f Q",
+        color, x, y, width, height
+    );
 }
 
 fn render_pdf(endpoint: &ProxyEndpoint, logs: &[RequestLog]) -> Vec<u8> {
@@ -234,15 +359,18 @@ fn render_pdf(endpoint: &ProxyEndpoint, logs: &[RequestLog]) -> Vec<u8> {
         }
     };
 
-    add_pdf_text(
+    add_pdf_rect(&mut content, 0, 704, PAGE_WIDTH, 88, "0.10 0.16 0.25");
+    let mut title_y = 756;
+    add_pdf_text_color(
         &mut content,
         48,
-        &mut y,
+        &mut title_y,
         "Transit Proxy Log Export",
-        18,
+        20,
         true,
+        "1 1 1",
     );
-    y -= 4;
+    y = 680;
     add_pdf_text(
         &mut content,
         48,
@@ -271,6 +399,7 @@ fn render_pdf(endpoint: &ProxyEndpoint, logs: &[RequestLog]) -> Vec<u8> {
 
     for (index, log) in logs.iter().enumerate() {
         ensure_space(&mut pages, &mut content, &mut y, 90);
+        add_pdf_rect(&mut content, 42, y - 12, 528, 34, "0.91 0.94 0.98");
         add_pdf_text(
             &mut content,
             48,
@@ -311,10 +440,22 @@ fn render_pdf(endpoint: &ProxyEndpoint, logs: &[RequestLog]) -> Vec<u8> {
 
         for (label, value) in sections {
             ensure_space(&mut pages, &mut content, &mut y, 45);
+            add_pdf_rect(&mut content, 54, y - 7, 504, 18, "0.95 0.96 0.98");
             add_pdf_text(&mut content, 60, &mut y, label, 10, true);
-            for line in pdf_lines(&value, 96) {
+            let is_body = label.ends_with("body");
+            let display_value = if is_body { pretty_json(&value) } else { value };
+            for line in if is_body {
+                pdf_lines_preserve(&display_value, 92)
+            } else {
+                pdf_lines(&display_value, 96)
+            } {
                 ensure_space(&mut pages, &mut content, &mut y, 15);
-                add_pdf_text(&mut content, 72, &mut y, &line, 8, false);
+                if is_body {
+                    add_pdf_code_line(&mut content, 72, y, &line);
+                    y -= 15;
+                } else {
+                    add_pdf_text(&mut content, 72, &mut y, &line, 8, false);
+                }
             }
             y -= 3;
         }
@@ -323,17 +464,26 @@ fn render_pdf(endpoint: &ProxyEndpoint, logs: &[RequestLog]) -> Vec<u8> {
     finish_page(&mut pages, &mut content);
 
     let page_count = pages.len().max(1);
+    for (index, page) in pages.iter_mut().enumerate() {
+        let _ = writeln!(
+            page,
+            "0.45 0.48 0.53 rg 0.5 w 48 38 m 564 38 l S 0 0 0 rg BT /F1 8 Tf 48 24 Td (Transit Proxy Logs) Tj 480 0 Td (Page {} of {}) Tj ET",
+            index + 1,
+            page_count
+        );
+    }
     let font_regular = 3;
     let font_bold = 4;
-    let first_page = font_bold + 1;
+    let font_mono = 5;
+    let first_page = font_mono + 1;
     let page_objects = first_page..first_page + page_count;
     let content_objects_start = first_page + page_count;
     let object_count = content_objects_start + page_count - 1;
 
     let mut pdf = String::from("%PDF-1.4\n");
-    let mut offsets: Vec<usize> = vec![0];
+    let mut offsets: Vec<usize> = vec![0; object_count + 1];
     let add_object = |number: usize, body: String, pdf: &mut String, offsets: &mut Vec<usize>| {
-        offsets.push(pdf.len());
+        offsets[number] = pdf.len();
         let _ = write!(pdf, "{} 0 obj\n{}\nendobj\n", number, body);
     };
 
@@ -366,14 +516,20 @@ fn render_pdf(endpoint: &ProxyEndpoint, logs: &[RequestLog]) -> Vec<u8> {
         &mut pdf,
         &mut offsets,
     );
+    add_object(
+        font_mono,
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>".to_string(),
+        &mut pdf,
+        &mut offsets,
+    );
 
     for (page_index, page_number) in page_objects.enumerate() {
         let content_number = content_objects_start + page_index;
         add_object(
             page_number,
             format!(
-                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {} {}] /Resources << /Font << /F1 {} 0 R /F2 {} 0 R >> >> /Contents {} 0 R >>",
-                PAGE_WIDTH, PAGE_HEIGHT, font_regular, font_bold, content_number
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {} {}] /Resources << /Font << /F1 {} 0 R /F2 {} 0 R /F3 {} 0 R >> >> /Contents {} 0 R >>",
+                PAGE_WIDTH, PAGE_HEIGHT, font_regular, font_bold, font_mono, content_number
             ),
             &mut pdf,
             &mut offsets,
