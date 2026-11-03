@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Box } from "@mui/material";
 import { ProxyEndpoint, RequestLog } from "./types";
+import { buildLogsHtml } from "./utils/exportHtml";
 import {
   Sidebar,
   RequestList,
@@ -62,30 +63,25 @@ function App() {
     setSelectedLog(null);
   };
 
-  const handleExportPdf = async () => {
-    if (!selectedEndpoint) return;
+  const currentEndpoint = endpoints.find((e) => e.id === selectedEndpoint);
 
-    try {
-      const bytes = await invoke<number[]>("export_logs_pdf", { endpointId: selectedEndpoint });
-      const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `transit-proxy-${selectedEndpoint.slice(0, 8)}-logs.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Failed to export logs", error);
-      window.alert("Failed to export proxy logs as PDF.");
-    }
+  const handleExportHtml = () => {
+    if (!currentEndpoint) return;
+
+    const html = buildLogsHtml(currentEndpoint, logs);
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `transit-proxy-${currentEndpoint.local_port}-logs.html`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleSelectEndpoint = (id: string) => {
     setSelectedEndpoint(id);
     setSelectedLog(null);
   };
-
-  const currentEndpoint = endpoints.find((e) => e.id === selectedEndpoint);
 
   return (
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
@@ -103,7 +99,7 @@ function App() {
             <ProxyHeader
               endpoint={currentEndpoint}
               onClearLogs={handleClearLogs}
-              onExportPdf={handleExportPdf}
+              onExportHtml={handleExportHtml}
             />
 
             <Box sx={{ flex: 1, display: "flex", overflow: "hidden", flexDirection: { xs: "column", md: "row" } }}>
