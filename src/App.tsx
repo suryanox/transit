@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { Box } from "@mui/material";
 import { ProxyEndpoint, RequestLog } from "./types";
 import { buildLogsHtml } from "./utils/exportHtml";
@@ -35,10 +36,35 @@ function App() {
   useEffect(() => {
     if (selectedEndpoint) {
       fetchLogs(selectedEndpoint);
-      const interval = setInterval(() => fetchLogs(selectedEndpoint), 1000);
-      return () => clearInterval(interval);
     }
   }, [selectedEndpoint, fetchLogs]);
+
+  useEffect(() => {
+    if (!selectedEndpoint) return;
+
+    let active = true;
+    let unlisten: (() => void) | undefined;
+
+    listen<RequestLog>("request-log", (event) => {
+      const log = event.payload;
+      if (!active || log.endpoint_id !== selectedEndpoint) return;
+
+      setLogs((previous) =>
+        previous.some((existing) => existing.id === log.id)
+          ? previous.map((existing) => (existing.id === log.id ? log : existing))
+          : [...previous, log],
+      );
+      setSelectedLog((previous) => (previous?.id === log.id ? log : previous));
+    }).then((cleanup) => {
+      if (active) unlisten = cleanup;
+      else cleanup();
+    });
+
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, [selectedEndpoint]);
 
   const handleCreateProxy = async (destinationUrl: string) => {
     const endpoint = await invoke<ProxyEndpoint>("create_proxy", { destinationUrl });

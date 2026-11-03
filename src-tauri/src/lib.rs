@@ -65,7 +65,7 @@ fn get_state() -> SharedState {
 }
 
 #[tauri::command]
-fn create_proxy(destination_url: String) -> Result<ProxyEndpoint, String> {
+fn create_proxy(app: tauri::AppHandle, destination_url: String) -> Result<ProxyEndpoint, String> {
     let destination = url::Url::parse(&destination_url)
         .map_err(|_| "Destination must be a valid URL".to_string())?;
     if !matches!(destination.scheme(), "http" | "https") || destination.host_str().is_none() {
@@ -96,12 +96,14 @@ fn create_proxy(destination_url: String) -> Result<ProxyEndpoint, String> {
 
     let endpoint_clone = endpoint.clone();
     let state_clone = state.clone();
+    let app_clone = app.clone();
 
     thread::spawn(move || {
         let rt = actix_rt::Runtime::new().unwrap();
         rt.block_on(async {
             if let Err(error) =
-                proxy::start_proxy_server(endpoint_clone, state_clone, listener).await
+                proxy::start_proxy_server(endpoint_clone, state_clone, listener, Some(app_clone))
+                    .await
             {
                 eprintln!("Proxy server stopped: {error}");
             }

@@ -6,6 +6,8 @@ use std::io;
 use std::net::TcpListener;
 use std::sync::Arc;
 use std::time::Instant;
+use tauri::AppHandle;
+use tauri::Emitter;
 use url::Url;
 use uuid::Uuid;
 
@@ -15,6 +17,7 @@ struct ProxyState {
     client: Client,
     endpoint: ProxyEndpoint,
     app_state: Arc<AppState>,
+    app_handle: Option<AppHandle>,
 }
 
 fn body_for_log(body: &[u8]) -> String {
@@ -136,7 +139,10 @@ async fn proxy_handler(
     };
 
     if let Some(logs) = state.app_state.logs.write().get_mut(&state.endpoint.id) {
-        logs.push(log);
+        logs.push(log.clone());
+    }
+    if let Some(app_handle) = &state.app_handle {
+        let _ = app_handle.emit("request-log", &log);
     }
 
     let mut http_response = HttpResponse::build(
@@ -162,6 +168,7 @@ pub async fn start_proxy_server(
     endpoint: ProxyEndpoint,
     app_state: Arc<AppState>,
     listener: TcpListener,
+    app_handle: Option<AppHandle>,
 ) -> io::Result<()> {
     let endpoint_id = endpoint.id.clone();
 
@@ -172,6 +179,7 @@ pub async fn start_proxy_server(
             .map_err(io::Error::other)?,
         endpoint,
         app_state: app_state.clone(),
+        app_handle,
     });
 
     let server = HttpServer::new(move || {
