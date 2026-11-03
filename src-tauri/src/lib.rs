@@ -1,6 +1,7 @@
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::net::TcpListener;
 use std::sync::Arc;
 use std::thread;
 use uuid::Uuid;
@@ -47,6 +48,12 @@ impl AppState {
     }
 }
 
+impl Default for AppState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 type SharedState = Arc<AppState>;
 
 use std::sync::OnceLock;
@@ -59,7 +66,20 @@ fn get_state() -> SharedState {
 
 #[tauri::command]
 fn create_proxy(destination_url: String) -> Result<ProxyEndpoint, String> {
-    let port = portpicker::pick_unused_port().ok_or("No available ports")?;
+    let destination = url::Url::parse(&destination_url)
+        .map_err(|_| "Destination must be a valid URL".to_string())?;
+    if !matches!(destination.scheme(), "http" | "https") || destination.host_str().is_none() {
+        return Err("Destination must use http:// or https:// and include a host".to_string());
+    }
+
+    // Bind first so the endpoint is never reported as active for a port that
+    // another process claimed between port selection and server startup.
+    let listener =
+        TcpListener::bind("127.0.0.1:0").map_err(|e| format!("Could not bind local proxy: {e}"))?;
+    let port = listener
+        .local_addr()
+        .map_err(|e| format!("Could not determine local proxy port: {e}"))?
+        .port();
     let id = Uuid::new_v4().to_string();
     let created_at = chrono::Utc::now().to_rfc3339();
 
@@ -80,7 +100,11 @@ fn create_proxy(destination_url: String) -> Result<ProxyEndpoint, String> {
     thread::spawn(move || {
         let rt = actix_rt::Runtime::new().unwrap();
         rt.block_on(async {
-            proxy::start_proxy_server(endpoint_clone, state_clone).await;
+            if let Err(error) =
+                proxy::start_proxy_server(endpoint_clone, state_clone, listener).await
+            {
+                eprintln!("Proxy server stopped: {error}");
+            }
         });
     });
 
@@ -90,31 +114,28 @@ fn create_proxy(destination_url: String) -> Result<ProxyEndpoint, String> {
 #[tauri::command]
 fn get_endpoints() -> Vec<ProxyEndpoint> {
     let state = get_state();
-    let endpoints = state.endpoints.read().values().cloned().collect();
-    endpoints
+    state.endpoints.read().values().cloned().collect()
 }
 
 #[tauri::command]
 fn get_logs(endpoint_id: String) -> Vec<RequestLog> {
     let state = get_state();
-    let logs = state
+    state
         .logs
         .read()
         .get(&endpoint_id)
         .cloned()
-        .unwrap_or_default();
-    logs
+        .unwrap_or_default()
 }
 
 #[tauri::command]
 fn get_log_detail(endpoint_id: String, log_id: String) -> Option<RequestLog> {
     let state = get_state();
-    let log = state
+    state
         .logs
         .read()
         .get(&endpoint_id)
-        .and_then(|logs| logs.iter().find(|l| l.id == log_id).cloned());
-    log
+        .and_then(|logs| logs.iter().find(|l| l.id == log_id).cloned())
 }
 
 #[tauri::command]

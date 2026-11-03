@@ -1,2 +1,9 @@
 /node_modules/
 /.idea/
+
+# Generated frontend and Rust build artifacts
+/dist/
+/src-tauri/target/
+
+# Local OS/editor files
+.DS_Store
