@@ -1,14 +1,28 @@
-import { Box, Typography, Paper, Chip, Stack, useTheme, alpha } from "@mui/material";
+import { Box, Typography, Paper, Chip, Stack, useTheme, alpha, Button } from "@mui/material";
+import { Terminal as TerminalIcon } from "@mui/icons-material";
 import { RequestLog } from "../types";
 import { methodColors, getStatusColor, formatJson } from "../utils";
 import { CodeBlock } from "./CodeBlock";
 
 interface RequestDetailsProps {
     log: RequestLog;
+    localPort: number;
 }
 
-export function RequestDetails({ log }: RequestDetailsProps) {
+function shellQuote(value: string): string {
+    return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+export function RequestDetails({ log, localPort }: RequestDetailsProps) {
     const theme = useTheme();
+    const curl = [
+        `curl ${shellQuote(`http://localhost:${localPort}${log.path}`)}`,
+        `-X ${log.method}`,
+        ...Object.entries(log.request_headers)
+            .filter(([key]) => !["host", "content-length", "connection"].includes(key.toLowerCase()))
+            .map(([key, value]) => `-H ${shellQuote(`${key}: ${value}`)}`),
+        ...(log.request_body ? [`--data-raw ${shellQuote(log.request_body)}`] : []),
+    ].join(" \\\n  ");
 
     return (
         <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
@@ -41,6 +55,11 @@ export function RequestDetails({ log }: RequestDetailsProps) {
                 >
                     {new Date(log.timestamp).toLocaleTimeString()}
                 </Typography>
+            </Box>
+            <Box sx={{ px: 2.5, py: 1, borderBottom: 1, borderColor: "divider", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 0.5 }}>
+                <Button size="small" variant="outlined" startIcon={<TerminalIcon />} onClick={() => navigator.clipboard.writeText(curl)}>
+                    Copy as cURL
+                </Button>
             </Box>
             <Box sx={{ flex: 1, overflow: "auto", p: 2.5 }}>
                 <Stack spacing={2.5}>

@@ -4,10 +4,13 @@ import {
   List,
   ListItemButton,
   Chip,
+  TextField,
+  MenuItem,
   useTheme,
   alpha,
 } from "@mui/material";
-import { Info as InfoIcon } from "@mui/icons-material";
+import { Info as InfoIcon, Search as SearchIcon } from "@mui/icons-material";
+import { useMemo, useState } from "react";
 import { RequestLog } from "../types";
 import { methodColors, getStatusColor } from "../utils";
 
@@ -19,6 +22,26 @@ interface RequestListProps {
 
 export function RequestList({ logs, selectedLogId, onSelectLog }: RequestListProps) {
   const theme = useTheme();
+  const [search, setSearch] = useState("");
+  const [method, setMethod] = useState("all");
+  const [status, setStatus] = useState("all");
+  const [slowOnly, setSlowOnly] = useState(false);
+
+  const methods = useMemo(
+    () => [...new Set(logs.map((log) => log.method))].sort(),
+    [logs],
+  );
+  const filteredLogs = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return logs.filter((log) => {
+      const matchesSearch = !query || `${log.method} ${log.path}`.toLowerCase().includes(query);
+      const matchesMethod = method === "all" || log.method === method;
+      const matchesStatus =
+        status === "all" || `${Math.floor(log.response_status / 100)}xx` === status;
+      const matchesSlow = !slowOnly || log.duration_ms >= 1000;
+      return matchesSearch && matchesMethod && matchesStatus && matchesSlow;
+    });
+  }, [logs, method, search, slowOnly, status]);
 
   return (
     <Box
@@ -49,13 +72,45 @@ export function RequestList({ logs, selectedLogId, onSelectLog }: RequestListPro
           Requests
         </Typography>
         <Chip
-          label={logs.length}
+          label={filteredLogs.length === logs.length ? logs.length : `${filteredLogs.length}/${logs.length}`}
           size="small"
           sx={{
             height: 20,
             fontSize: "11px",
             bgcolor: alpha(theme.palette.background.default, 0.5),
           }}
+        />
+      </Box>
+      <Box sx={{ px: 1, pt: 1, display: "grid", gap: 0.75 }}>
+        <TextField
+          size="small"
+          fullWidth
+          placeholder="Search path or method"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          InputProps={{ startAdornment: <SearchIcon sx={{ mr: 0.75, color: "text.secondary", fontSize: 17 }} /> }}
+          sx={{ "& .MuiInputBase-input": { fontSize: 12 } }}
+        />
+        <Box sx={{ display: "flex", gap: 0.75 }}>
+          <TextField select size="small" value={method} onChange={(event) => setMethod(event.target.value)} sx={{ flex: 1, "& .MuiInputBase-input": { fontSize: 11, py: 0.8 } }}>
+            <MenuItem value="all">All methods</MenuItem>
+            {methods.map((value) => <MenuItem key={value} value={value}>{value}</MenuItem>)}
+          </TextField>
+          <TextField select size="small" value={status} onChange={(event) => setStatus(event.target.value)} sx={{ flex: 1, "& .MuiInputBase-input": { fontSize: 11, py: 0.8 } }}>
+            <MenuItem value="all">All status</MenuItem>
+            <MenuItem value="2xx">2xx Success</MenuItem>
+            <MenuItem value="3xx">3xx Redirect</MenuItem>
+            <MenuItem value="4xx">4xx Client error</MenuItem>
+            <MenuItem value="5xx">5xx Server error</MenuItem>
+          </TextField>
+        </Box>
+        <Chip
+          label="Slow requests (≥ 1s)"
+          size="small"
+          variant={slowOnly ? "filled" : "outlined"}
+          color={slowOnly ? "warning" : "default"}
+          onClick={() => setSlowOnly((value) => !value)}
+          sx={{ justifySelf: "start", height: 24, fontSize: 11, mb: 0.25 }}
         />
       </Box>
       <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>
@@ -69,9 +124,13 @@ export function RequestList({ logs, selectedLogId, onSelectLog }: RequestListPro
               Send requests to your proxy URL
             </Typography>
           </Box>
+        ) : filteredLogs.length === 0 ? (
+          <Box sx={{ p: 3, textAlign: "center" }}>
+            <Typography variant="body2" color="text.secondary">No matching requests</Typography>
+          </Box>
         ) : (
           <List disablePadding>
-            {[...logs].reverse().map((log) => (
+            {[...filteredLogs].reverse().map((log) => (
               <ListItemButton
                 key={log.id}
                 selected={selectedLogId === log.id}

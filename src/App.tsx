@@ -136,7 +136,7 @@ function App() {
               />
 
               {selectedLog ? (
-                <RequestDetails log={selectedLog} />
+                <RequestDetails log={selectedLog} localPort={currentEndpoint.local_port} />
               ) : (
                 <NoRequestSelected />
               )}
