@@ -1,6 +1,7 @@
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs;
 use std::net::TcpListener;
 use std::sync::Arc;
 use std::thread;
@@ -172,16 +173,23 @@ fn clear_logs(endpoint_id: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn write_export_file(path: String, contents: String) -> Result<(), String> {
+    fs::write(&path, contents).map_err(|error| format!("Could not write export: {error}"))
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             create_proxy,
             get_endpoints,
             get_logs,
             get_log_detail,
             delete_endpoint,
-            clear_logs
+            clear_logs,
+            write_export_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

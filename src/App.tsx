@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { save } from "@tauri-apps/plugin-dialog";
 import {
   Alert,
   Box,
@@ -148,17 +149,21 @@ function App() {
 
   const currentEndpoint = endpoints.find((e) => e.id === selectedEndpoint);
 
-  const handleExportHtml = () => {
+  const handleExportHtml = async () => {
     if (!currentEndpoint) return;
 
     const html = buildLogsHtml(currentEndpoint, logs);
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `transit-proxy-${currentEndpoint.local_port}-logs.html`;
-    link.click();
-    URL.revokeObjectURL(url);
+    try {
+      const path = await save({
+        title: "Export Transit logs",
+        defaultPath: `transit-proxy-${currentEndpoint.local_port}-logs.html`,
+        filters: [{ name: "HTML file", extensions: ["html"] }],
+      });
+      if (!path) return;
+      await invoke("write_export_file", { path, contents: html });
+    } catch (reason) {
+      setError(`Could not export logs: ${String(reason)}`);
+    }
   };
 
   const handleSelectEndpoint = (id: string) => {
