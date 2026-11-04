@@ -21,9 +21,10 @@ interface ProxyHeaderProps {
   endpoint: ProxyEndpoint;
   onClearLogs: () => void;
   onExportHtml: () => void;
+  clearing?: boolean;
 }
 
-export function ProxyHeader({ endpoint, onClearLogs, onExportHtml }: ProxyHeaderProps) {
+export function ProxyHeader({ endpoint, onClearLogs, onExportHtml, clearing = false }: ProxyHeaderProps) {
   const theme = useTheme();
 
   const copyUrl = async () => {
@@ -110,6 +111,7 @@ export function ProxyHeader({ endpoint, onClearLogs, onExportHtml }: ProxyHeader
           size="small"
           startIcon={<DeleteIcon />}
           onClick={onClearLogs}
+          disabled={clearing}
           sx={{ color: "text.secondary", borderColor: "divider" }}
         >
           Clear

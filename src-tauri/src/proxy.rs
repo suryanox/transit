@@ -278,6 +278,7 @@ mod tests {
             client: Client::builder().build().unwrap(),
             endpoint: endpoint(format!("http://127.0.0.1:{upstream_port}/api")),
             app_state: app_state.clone(),
+            app_handle: None,
         });
         let app = aw_test::init_service(
             App::new()
@@ -338,6 +339,7 @@ mod tests {
             client: Client::builder().build().unwrap(),
             endpoint: endpoint("http://127.0.0.1:1".to_string()),
             app_state: app_state.clone(),
+            app_handle: None,
         });
         let app = aw_test::init_service(
             App::new()

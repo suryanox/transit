@@ -116,7 +116,9 @@ fn create_proxy(app: tauri::AppHandle, destination_url: String) -> Result<ProxyE
 #[tauri::command]
 fn get_endpoints() -> Vec<ProxyEndpoint> {
     let state = get_state();
-    state.endpoints.read().values().cloned().collect()
+    let mut endpoints: Vec<_> = state.endpoints.read().values().cloned().collect();
+    endpoints.sort_by(|left, right| left.created_at.cmp(&right.created_at));
+    endpoints
 }
 
 #[tauri::command]
